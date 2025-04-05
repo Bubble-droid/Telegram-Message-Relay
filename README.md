@@ -35,6 +35,25 @@ wrangler kv namespace create MESSAGE_FROM_CHAT_ID
 
 #### Configure wrangler.json
 
+```json
+{
+	"vars": {
+        "TELEGRAM_BOT_ID": "YOUR_BOT_ID",
+        "TELEGRAM_BOT_NAME": "YOUR_BOT_NAME",
+        "TELEGRAM_BOT_API": "https://api.telegram.org/bot",
+        "TELEGRAM_BOT_TOKEN": "YOUR_BOT_TOKEN",
+        "WEBHOOK_SECRET_TOKEN": "YOUR_SECRET_TOKEN",
+        "TELEGRAM_BOT_OWNER_ID": "YOUR_TELEGRAM_ID",
+        "TELEGRAM_BOT_WELCOME_TEXT": "Welcome to use my telegram bot!"
+    },
+    "kv_namespaces": [
+        {
+            "binding": "MESSAGE_FROM_CHAT_ID",
+            "id": "YOUR_KV_ID"
+        }
+    ]
+}
+```
 
 #### Deploy to Cloudflare Workers
 
