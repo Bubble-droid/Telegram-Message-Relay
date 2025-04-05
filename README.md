@@ -37,7 +37,7 @@ wrangler kv namespace create MESSAGE_FROM_CHAT_ID
 
 ```json
 {
-	"vars": {
+    "vars": {
         "TELEGRAM_BOT_ID": "YOUR_BOT_ID",
         "TELEGRAM_BOT_NAME": "YOUR_BOT_NAME",
         "TELEGRAM_BOT_API": "https://api.telegram.org/bot",
