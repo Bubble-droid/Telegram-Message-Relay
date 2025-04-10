@@ -98,9 +98,7 @@ export class TelegramBot {
 			} else {
 				return;
 			}
-		} catch (error) {
-			console.error('Error commandReply:', error);
-		}
+		} catch (error) {}
 	}
 
 	async receiveMessage(message, messageId, fromUserId, fromChatId, chatId) {
@@ -108,8 +106,6 @@ export class TelegramBot {
 			const fromFirstName = message.from?.first_name || '';
 			const fromLastName = message.from?.last_name || '';
 			const fromNickName = `${fromFirstName} ${fromLastName}`;
-
-			await this.fromChatIdKv.put(fromNickName.trim(), fromChatId);
 
 			const fromUserName = message.from?.username;
 			const fromNameUrl = `https://t.me/${fromUserName}`;
@@ -122,8 +118,11 @@ export class TelegramBot {
 				fromUserInfo = `From user: [${fromNickName}](${fromNameUrl})`;
 			}
 
-			await this.sendMessage(chatId, fromUserInfo, 'Markdown');
-			await this.forwardMessage(chatId, fromChatId, messageId);
+			// await this.sendMessage(chatId, fromUserInfo, 'Markdown');
+			const botForwardMessage = await this.forwardMessage(chatId, fromChatId, messageId);
+			const botForwardMessageId = botForwardMessage?.message_id;
+			console.log(`botForwardMessageId: ${botForwardMessageId}`);
+			await this.fromChatIdKv.put(botForwardMessageId, fromChatId);
 		} catch (error) {
 			console.error('Error receiveMessage:', error);
 		}
@@ -132,16 +131,16 @@ export class TelegramBot {
 	async replyMessage(message, messageId, fromChatId) {
 		const replyToMessage = message.reply_to_message;
 		try {
-			const replyToUser = replyToMessage?.forward_origin?.sender_user_name;
-			const replyToChatId = await this.fromChatIdKv.get(replyToUser.trim());
-
+			const replyToMessageId = replyToMessage?.message_id;
+			const replyToChatId = await this.fromChatIdKv.get(replyToMessageId);
+			console.log(`replyToChatId: ${replyToChatId}`);
 			await this.copyMessage(replyToChatId, fromChatId, messageId, 'Markdown');
 		} catch (error) {
 			console.error('Error replyMessage:', error);
 		}
 	}
 
-	async sendMessage(chatId, text, parseMode = 'Markdown' | 'HTML') {
+	async sendMessage(chatId, text, replyToMessageId = null, parseMode = 'Markdown' | 'HTML') {
 		const url = `${this.apiUrl}/sendMessage`;
 		try {
 			const response = await fetch(url, {
@@ -152,6 +151,7 @@ export class TelegramBot {
 				body: JSON.stringify({
 					chat_id: chatId,
 					text: text,
+					reply_to_message_id: replyToMessageId,
 					parse_mode: parseMode,
 				}),
 			});
@@ -186,6 +186,9 @@ export class TelegramBot {
 				const errorText = await response.text();
 				console.error(`Telegram API error: ${response.statusText}`, errorText);
 				throw new Error(`Telegram API error: ${response.statusText}\n${errorText}`);
+			} else {
+				const result = await response.json();
+				return { ok: true, message_id: result?.result?.message_id };
 			}
 		} catch (error) {
 			console.error('Error forwarding message part:', error);
@@ -193,7 +196,7 @@ export class TelegramBot {
 		}
 	}
 
-	async copyMessage(chatId, fromChatId, messageId, parseMode = 'Markdown' | 'HTML') {
+	async copyMessage(chatId, fromChatId, messageId, replyToMessageId = null, parseMode = 'Markdown' | 'HTML') {
 		const url = `${this.apiUrl}/copyMessage`;
 		try {
 			const response = await fetch(url, {
@@ -205,6 +208,7 @@ export class TelegramBot {
 					chat_id: chatId,
 					from_chat_id: fromChatId,
 					message_id: messageId,
+					reply_to_message_id: replyToMessageId,
 					parse_mode: parseMode,
 				}),
 			});
