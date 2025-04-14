@@ -58,7 +58,7 @@ export class TelegramBot {
 		try {
 			if (update.message) {
 				const message = update.message;
-				const messageId = message?.message_id;
+				const fromMessageId = message?.message_id;
 				const fromUserId = message.from?.id;
 				const fromChatId = message.chat?.id;
 
@@ -77,11 +77,11 @@ export class TelegramBot {
 				}
 
 				if (fromUserId !== ownerId) {
-					return await this.receiveMessage(message, messageId, fromUserId, fromChatId, ownerId);
+					return await this.receiveMessage(message, fromMessageId, fromUserId, fromChatId, ownerId);
 				}
 
 				if (fromUserId === ownerId && message.reply_to_message) {
-					return await this.replyMessage(message, messageId, fromChatId);
+					return await this.replyMessage(message, fromMessageId, fromChatId);
 				}
 			}
 		} catch (error) {
@@ -94,15 +94,22 @@ export class TelegramBot {
 		try {
 			const commandText = message?.text;
 			if (commandText === '/start') {
-				await this.sendMessage(fromChatId, replyText, 'Markdown');
+				await this.sendMessage(fromChatId, replyText, null, 'Markdown');
 			} else {
 				return;
 			}
 		} catch (error) {}
 	}
 
-	async receiveMessage(message, messageId, fromUserId, fromChatId, chatId) {
+	async receiveMessage(message, fromMessageId, fromUserId, fromChatId, chatId) {
 		try {
+			const botSendMessage = await this.copyMessage(chatId, fromChatId, fromMessageId, null, 'Markdown');
+			const botSendMessageId = botSendMessage?.message_id;
+			console.log(`botSendMessageId: ${botSendMessageId}`);
+			await this.fromChatIdKv.put(botSendMessageId, fromChatId);
+
+			await this.cleanupKVKeys(this.fromChatIdKv);
+
 			const fromFirstName = message.from?.first_name || '';
 			const fromLastName = message.from?.last_name || '';
 			const fromNickName = `${fromFirstName} ${fromLastName}`;
@@ -111,20 +118,24 @@ export class TelegramBot {
 			const fromNameUrl = `https://t.me/${fromUserName}`;
 			const fromIdUrl = `tg://user?id=${fromUserId}`;
 
-			let fromUserInfo = `From user: ${fromNickName}`;
+			let fromUserInfo = `From user:`;
 			if (!fromUserName) {
 				fromUserInfo = `From user: ${fromIdUrl}`;
 			} else {
 				fromUserInfo = `From user: [${fromNickName}](${fromNameUrl})`;
 			}
 
-			// await this.sendMessage(chatId, fromUserInfo, 'Markdown');
-			const botForwardMessage = await this.forwardMessage(chatId, fromChatId, messageId);
-			const botForwardMessageId = botForwardMessage?.message_id;
-			console.log(`botForwardMessageId: ${botForwardMessageId}`);
-			await this.fromChatIdKv.put(botForwardMessageId, fromChatId);
+			if (message?.text) {
+				const messageText = message.text;
+				const fullText = `${fromUserInfo}\n\n${messageText}`;
+				await this.editMessageText(chatId, botSendMessageId, fullText, 'Markdown');
+			} else if (message?.caption) {
+				const messageCaption = message.caption;
+				const fullCaption = `${fromUserInfo}\n\n${messageCaption}`;
+				await this.editMessageCaption(chatId, botSendMessageId, fullCaption, 'Markdown');
+			}
 		} catch (error) {
-			console.error('Error receiveMessage:', error);
+			console.error('Error receiveing message part:', error);
 		}
 	}
 
@@ -134,9 +145,9 @@ export class TelegramBot {
 			const replyToMessageId = replyToMessage?.message_id;
 			const replyToChatId = await this.fromChatIdKv.get(replyToMessageId);
 			console.log(`replyToChatId: ${replyToChatId}`);
-			await this.copyMessage(replyToChatId, fromChatId, messageId, 'Markdown');
+			await this.copyMessage(replyToChatId, fromChatId, messageId, null, 'Markdown');
 		} catch (error) {
-			console.error('Error replyMessage:', error);
+			console.error('Error replying message part:', error);
 		}
 	}
 
@@ -196,7 +207,7 @@ export class TelegramBot {
 		}
 	}
 
-	async copyMessage(chatId, fromChatId, messageId, replyToMessageId = null, parseMode = 'Markdown' | 'HTML') {
+	async copyMessage(chatId, fromChatId, fromMessageId, replyToMessageId = null, parseMode = 'Markdown' | 'HTML') {
 		const url = `${this.apiUrl}/copyMessage`;
 		try {
 			const response = await fetch(url, {
@@ -207,7 +218,7 @@ export class TelegramBot {
 				body: JSON.stringify({
 					chat_id: chatId,
 					from_chat_id: fromChatId,
-					message_id: messageId,
+					message_id: fromMessageId,
 					reply_to_message_id: replyToMessageId,
 					parse_mode: parseMode,
 				}),
@@ -217,10 +228,96 @@ export class TelegramBot {
 				const errorText = await response.text();
 				console.error(`Telegram API error: ${response.statusText}`, errorText);
 				throw new Error(`Telegram API error: ${response.statusText}\n${errorText}`);
+			} else {
+				const result = await response.json();
+				return { ok: true, message_id: result?.result?.message_id };
 			}
 		} catch (error) {
 			console.error('Error copying message part:', error);
 			throw error;
+		}
+	}
+
+	async editMessageText(chatId, messageId, text, parseMode = 'Markdown' | 'HTML') {
+		const url = `${this.apiUrl}/editMessageText`;
+		try {
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					chat_id: chatId,
+					message_id: messageId,
+					text: text,
+					parse_mode: parseMode,
+					link_preview_options: { is_disabled: true },
+				}),
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error(`Telegram API error: ${response.statusText}`, errorText);
+				throw new Error(`Telegram API error: ${response.statusText}\n${errorText}`);
+			}
+		} catch (error) {
+			console.error('Error editing message text part:', error);
+			throw error;
+		}
+	}
+
+	async editMessageCaption(chatId, messageId, caption, parseMode = 'Markdown' | 'HTML') {
+		const url = `${this.apiUrl}/editMessageCaption`;
+		try {
+			const response = await fetch(url, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					chat_id: chatId,
+					message_id: messageId,
+					caption: caption,
+					parse_mode: parseMode,
+					show_caption_above_media: true,
+				}),
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error(`Telegram API error: ${response.statusText}`, errorText);
+				throw new Error(`Telegram API error: ${response.statusText}\n${errorText}`);
+			}
+		} catch (error) {
+			console.error('Error editing message caption part:', error);
+			throw error;
+		}
+	}
+
+	async cleanupKVKeys(kvNamespace, maxKeys = 10) {
+		try {
+			const listResult = await kvNamespace.list();
+			const allKeys = listResult.keys;
+			const currentKeyCount = allKeys.length;
+
+			if (currentKeyCount > maxKeys) {
+				const keysToDeleteCount = currentKeyCount - maxKeys;
+				const keysToDelete = allKeys.slice(0, keysToDeleteCount);
+
+				const deletePromises = keysToDelete.map((keyObj) => {
+					return kvNamespace.delete(keyObj.name);
+				});
+
+				await Promise.all(deletePromises);
+
+				console.log(`Successfully deleted ${keysToDeleteCount} keys.`);
+			} else {
+				console.log(`Key count is within the limit of ${maxKeys}, no cleanup needed.`);
+			}
+
+			console.log('KV cleanup process finished.');
+		} catch (error) {
+			console.error('Error during KV cleanup process:', error);
 		}
 	}
 }
