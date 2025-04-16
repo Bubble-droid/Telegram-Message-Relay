@@ -25,11 +25,7 @@ export class TelegramBot {
 		try {
 			console.log('Received Webhook request:');
 			console.log(`Method: ${request.method}`);
-			const headers = request.headers;
-			request.headers.forEach((value, key) => {
-				headers[key] = value;
-			});
-			console.log('Headers:', JSON.stringify(headers, null, 2));
+			console.log('Headers:', JSON.stringify(Object.fromEntries(request.headers), null, 2));
 
 			if (this.secretToken) {
 				const requestSecretToken = request.headers.get('X-Telegram-Bot-Api-Secret-Token');
@@ -54,6 +50,7 @@ export class TelegramBot {
 	}
 
 	async handleUpdate(update) {
+		if (!update.message) return;
 		const ownerId = this.ownerId;
 		try {
 			if (update.message) {
@@ -67,13 +64,8 @@ export class TelegramBot {
 					return;
 				}
 
-				if (message.entities) {
-					const entities = message.entities;
-					for (const entity of entities) {
-						if (entity.type === 'bot_command') {
-							return await this.commandReply(message, fromChatId);
-						}
-					}
+				if (message.entities?.some((entity) => entity.type === 'bot_command')) {
+					return await this.commandReply(message, fromChatId);
 				}
 
 				if (fromUserId !== ownerId) {
@@ -98,7 +90,9 @@ export class TelegramBot {
 			} else {
 				return;
 			}
-		} catch (error) {}
+		} catch (error) {
+			console.error('Error sending welcome message:', error);
+		}
 	}
 
 	async receiveMessage(message, fromMessageId, fromUserId, fromChatId, chatId) {
@@ -112,27 +106,38 @@ export class TelegramBot {
 
 			const fromFirstName = message.from?.first_name || '';
 			const fromLastName = message.from?.last_name || '';
-			const fromNickName = `${fromFirstName} ${fromLastName}`;
+			const fromFullName = `${fromFirstName} ${fromLastName}`;
 
 			const fromUserName = message.from?.username;
-			const fromNameUrl = `https://t.me/${fromUserName}`;
-			const fromIdUrl = `tg://user?id=${fromUserId}`;
+			const fromUserNameUrl = `https://t.me/${fromUserName}`;
+			const fromUserIdUrl = `tg://user?id=${fromUserId}`;
 
-			let fromUserInfo = `From user:`;
-			if (!fromUserName) {
-				fromUserInfo = `From user: ${fromIdUrl}`;
-			} else {
-				fromUserInfo = `From user: [${fromNickName}](${fromNameUrl})`;
+			let fromUserUrl = fromUserIdUrl;
+			if (fromUserName) {
+				if (fromFullName.trim() !== '') {
+					fromUserUrl = `[${fromFullName}](${fromUserNameUrl})`;
+				} else {
+					fromUserUrl = `[${fromUserName}](${fromUserNameUrl})`;
+				}
 			}
 
-			if (message?.text) {
+			const fromUser = `From user: \\[ ${fromUserUrl} \]`;
+
+			if (message?.sticker) {
+				await this.sendMessage(chatId, fromUser, null, 'Markdown');
+			} else if (message?.text) {
 				const messageText = message.text;
-				const fullText = `${fromUserInfo}\n\n${messageText}`;
+				const fullText = `${fromUser}\n——————\n${messageText}`;
 				await this.editMessageText(chatId, botSendMessageId, fullText, 'Markdown');
-			} else if (message?.caption) {
-				const messageCaption = message.caption;
-				const fullCaption = `${fromUserInfo}\n\n${messageCaption}`;
-				await this.editMessageCaption(chatId, botSendMessageId, fullCaption, 'Markdown');
+			} else {
+				if (message?.caption) {
+					const messageCaption = message?.caption;
+					const fullCaption = `${fromUser}\n——————\n${messageCaption}`;
+					await this.editMessageCaption(chatId, botSendMessageId, fullCaption, 'Markdown');
+				} else {
+					const newCaption = `${fromUser}\n——————`;
+					await this.editMessageCaption(chatId, botSendMessageId, newCaption, 'Markdown');
+				}
 			}
 		} catch (error) {
 			console.error('Error receiveing message part:', error);
@@ -141,9 +146,21 @@ export class TelegramBot {
 
 	async replyMessage(message, messageId, fromChatId) {
 		const replyToMessage = message.reply_to_message;
+		const replyToMessageId = replyToMessage?.message_id;
+
+		if (!replyToMessageId) {
+			console.warn('replyMessage called without reply_to_message_id, message:', message);
+			return;
+		}
+
 		try {
-			const replyToMessageId = replyToMessage?.message_id;
 			const replyToChatId = await this.fromChatIdKv.get(replyToMessageId);
+
+			if (!replyToChatId) {
+				console.warn(`replyToChatId not found in KV for messageId: ${replyToMessageId}`);
+				return;
+			}
+
 			console.log(`replyToChatId: ${replyToChatId}`);
 			await this.copyMessage(replyToChatId, fromChatId, messageId, null, 'Markdown');
 		} catch (error) {
@@ -164,6 +181,7 @@ export class TelegramBot {
 					text: text,
 					reply_to_message_id: replyToMessageId,
 					parse_mode: parseMode,
+					link_preview_options: { is_disabled: true },
 				}),
 			});
 

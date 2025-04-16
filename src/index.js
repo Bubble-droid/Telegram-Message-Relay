@@ -4,15 +4,16 @@ import TelegramBot from './api/telegram';
 
 export default {
 	async fetch(request, env) {
-		const bot = new TelegramBot(env);
-		const url = new URL(request.url);
-
 		try {
-			if (url.pathname === '/webhook') {
+			const bot = new TelegramBot(env);
+			const url = new URL(request.url);
+			const pathname = url.pathname;
+
+			if (pathname === '/webhook') {
 				return await bot.handleWebhook(request);
 			}
 
-			if (url.pathname === '/' || url.pathname === '') {
+			if (pathname === '/' || pathname === '') {
 				return new Response('OK', {
 					status: 200,
 					headers: { 'Content-Type': 'text/plain' },
