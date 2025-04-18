@@ -15,22 +15,16 @@ cd Telegram-Message-Relay
 npm install
 ```
 
-#### Install Wrangler CLI
-
-```bash
-npm install -g @cloudflare/wrangler
-```
-
 #### Log in to the Cloudflare account
 
 ```bash
-wrangler login
+npx wrangler login
 ```
 
 #### Create kV namespace
 
 ```bash
-wrangler kv namespace create MESSAGE_FROM_CHAT_ID
+npx wrangler kv namespace create MESSAGE_FROM_CHAT_ID
 ```
 
 #### Configure wrangler.json
@@ -58,7 +52,7 @@ wrangler kv namespace create MESSAGE_FROM_CHAT_ID
 #### Deploy to Cloudflare Workers
 
 ```bash
-wrangler deploy
+npx wrangler deploy
 ```
 
 #### Set Telegram WebHook
