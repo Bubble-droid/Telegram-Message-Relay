@@ -13,12 +13,33 @@
         "TELEGRAM_BOT_TOKEN": "YOUR_BOT_TOKEN",
         "WEBHOOK_SECRET_TOKEN": "YOUR_SECRET_TOKEN",
         "TELEGRAM_BOT_OWNER_ID": "YOUR_TELEGRAM_ID",
-        "TELEGRAM_BOT_WELCOME_TEXT": "Welcome to my message forwarding bot!"
+        "TELEGRAM_BOT_WELCOME_TEXT": "Welcome to my message forwarding bot!",
+        "MESSAGE_RELAY_KV_EXPIRATION_TTL": "604800"
     },
     "kv_namespaces": [
         {
-            "binding": "MESSAGE_FROM_CHAT_ID",
+            "binding": "MESSAGE_RELAY_KV",
             "id": "YOUR_KV_ID"
+        },
+        {
+            "binding": "TELEGRAM_BOT_CONFIG_KV",
+            "id": "YOUR_KV_ID"
+        }
+    ],
+    "durable_objects": {
+        "bindings": [
+            {
+                "name": "TIMER_DO",
+                "class_name": "TimerDO"
+            }
+        ]
+    },
+    "migrations": [
+        {
+            "tag": "v1",
+            "new_sqlite_classes": [
+                "TimerDO"
+            ]
         }
     ]
 }

@@ -1,33 +1,33 @@
-# User Instructions
+# 一个简单的 Telegram 消息转发机器人
 
-![preview](imgs/preview.png)
-
-#### Clone project to local
+### 快速开始
+1. Clone project to local
 
 ```bash
 git clone https://github.com/Bubble-droid/Telegram-Message-Relay.git
 cd Telegram-Message-Relay
 ```
 
-#### Install dependencies
+2. Install dependencies
 
 ```bash
 npm install
 ```
 
-#### Log in to the Cloudflare account
+3. Log in to the Cloudflare account
 
 ```bash
 npx wrangler login
 ```
 
-#### Create kV namespace
+4. Create kV namespace
 
 ```bash
-npx wrangler kv namespace create MESSAGE_FROM_CHAT_ID
+npx wrangler kv namespace create MESSAGE_RELAY_KV
+npx wrangler kv namespace create TELEGRAM_BOT_CONFIG_KV
 ```
 
-#### Configure wrangler.json
+5. Configure wrangler.json
 
 ```json
 {
@@ -38,24 +38,29 @@ npx wrangler kv namespace create MESSAGE_FROM_CHAT_ID
         "TELEGRAM_BOT_TOKEN": "YOUR_BOT_TOKEN",
         "WEBHOOK_SECRET_TOKEN": "YOUR_SECRET_TOKEN",
         "TELEGRAM_BOT_OWNER_ID": "YOUR_TELEGRAM_ID",
-        "TELEGRAM_BOT_WELCOME_TEXT": "Welcome to use my telegram bot!"
+        "TELEGRAM_BOT_WELCOME_TEXT": "Welcome to use my telegram bot!",
+        "MESSAGE_RELAY_KV_EXPIRATION_TTL": "604800" // 消息映射关系过期时间，以毫秒(ms)为单位
     },
     "kv_namespaces": [
         {
-            "binding": "MESSAGE_FROM_CHAT_ID",
+            "binding": "MESSAGE_RELAY_KV",
+            "id": "YOUR_KV_ID"
+        },
+        {
+            "binding": "TELEGRAM_BOT_CONFIG_KV",
             "id": "YOUR_KV_ID"
         }
     ]
 }
 ```
 
-#### Deploy to Cloudflare Workers
+6. Deploy to Cloudflare Workers
 
 ```bash
 npx wrangler deploy
 ```
 
-#### Set Telegram WebHook
+7. Set Telegram WebHook
 
 ```bash
 curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" -d "url=<YOUR_WORKERS_URL>/webhook&secret_token=<YOUR_SECRET_TOKEN>"
